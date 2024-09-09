@@ -1,9 +1,9 @@
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 
-# Define a schema
-public_universe_schema = StructType([
-    StructField("Identifier", StringType(), nullable=True),
+fixed_income_universe_schema = StructType([
+    StructField("HoldingIdentifier", StringType(), nullable=True),
     StructField("Name", StringType(), nullable=True),
+    StructField("BondType", StringType(), nullable=True),
     StructField("Country", StringType(), nullable=True),
     StructField("Sector", StringType(), nullable=True),
     StructField("Value", DoubleType(), nullable=True),
