@@ -21,9 +21,20 @@ def main():
     df_public_universe.cache()
     df_fixed_income_universe.cache()
 
-    portfolio_df = spark.createDataFrame(pd.read_excel("./data/SamplePortfolio1/Portfolio.xlsx"))
-    public_equity_df = spark.createDataFrame(pd.read_excel("./data/SamplePortfolio1/PublicEquityHoldings.xlsx"))
-    fixed_income_df = spark.createDataFrame(pd.read_excel("./data/SamplePortfolio1/FixedIncomeHoldings.xlsx"))
+    portfolio_df = spark.read.format("com.crealytics.spark.excel") \
+        .option("header", "true") \
+        .option("inferSchema", "true") \
+        .load("./data/SamplePortfolio1/Portfolio.xlsx")
+
+    public_equity_df = spark.read.format("com.crealytics.spark.excel") \
+        .option("header", "true") \
+        .option("inferSchema", "true") \
+        .load("./data/SamplePortfolio1/PublicEquityHoldings.xlsx")
+
+    fixed_income_df = spark.read.format("com.crealytics.spark.excel") \
+        .option("header", "true") \
+        .option("inferSchema", "true") \
+        .load("./data/SamplePortfolio1/FixedIncomeHoldings.xlsx")
 
     customer_portfolio = build_customer_portfolio(portfolio_df, public_equity_df, fixed_income_df)
     customer_portfolio.write.json("./output/customer_portfolio.json")
