@@ -28,9 +28,9 @@ def build_customer_portfolio(
     a customer portfolio view.
 
     Args:
-        portfolio_df (pyspark.sql.DataFrame): The first integer.
-        public_equity_df (pyspark.sql.DataFrame): The second integer.
-        fixed_income_df (pyspark.sql.DataFrame): The second integer.
+        portfolio_df (pyspark.sql.DataFrame): df containing portfolio data.
+        public_equity_df (pyspark.sql.DataFrame): df containing equity holdings.
+        fixed_income_df (pyspark.sql.DataFrame): df containing bond holdings.
 
 
     Returns:
@@ -39,7 +39,6 @@ def build_customer_portfolio(
     """
 
     flat_portfolio_df = build_flat_portfolio(portfolio_df, public_equity_df, fixed_income_df)
-
 
     customer_portfolio_df = flat_portfolio_df.groupBy("Portfolio Name", "FundName", "FundValue").agg(
         F.collect_list(

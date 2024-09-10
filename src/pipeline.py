@@ -8,6 +8,9 @@ from models.raw.fixed_income_universe import fixed_income_universe_schema
 from models.raw.public_universe import public_universe_schema
 from models.raw.portfolio import portfolio_mandatory_columns, portfolio_schema
 from models.raw.holdings import holdings_schema, holdings_mandatory_columns
+from utils import save_to_excel_with_aggregations
+from transformations.build_public_markets import build_public_markets
+from transformations.add_emissions import add_emissions
 from validation.raw_data_validation import raw_data_validation
 from transformations.build_customer_portfolio import build_customer_portfolio
 import argparse
@@ -22,10 +25,9 @@ def main(base_directory: str, portfolios: List[str]):
     # Load reference data
     df_public_universe = spark.read.csv("./data/public_universe.csv", schema=public_universe_schema, header=True)
     df_fixed_income_universe = spark.read.csv("./data/fixed_income_universe.csv", schema=fixed_income_universe_schema, header=True)
-
+    public_markets = build_public_markets(df_public_universe, df_fixed_income_universe)
     # Cache the reference data
-    df_public_universe.cache()
-    df_fixed_income_universe.cache()
+    public_markets.cache()
 
     # Initialize empty DataFrames
     combined_portfolio_df = spark.createDataFrame(spark.sparkContext.emptyRDD(), portfolio_schema)
@@ -76,7 +78,10 @@ def main(base_directory: str, portfolios: List[str]):
 
     customer_portfolio = build_customer_portfolio(combined_portfolio_df, combined_public_equity_df, combined_fixed_income_df)
     customer_portfolio.write.mode("overwrite").json("./output/customer_portfolio.json")
+    customer_profile_with_emissions = add_emissions(customer_portfolio, public_markets)
+    customer_profile_with_emissions.write.mode("overwrite").json("./output/customer_profile_with_emissions.json")
 
+    save_to_excel_with_aggregations(customer_profile_with_emissions, "./output/aggregated_results.xlsx")
     spark.stop()
 
 if __name__ == "__main__":
