@@ -1,6 +1,7 @@
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, ArrayType
 
 customer_portfolio_schema = StructType([
+    StructField("Portfolio Name", StringType(), True),
     StructField("FundName", StringType(), True),
     StructField("FundValue", DoubleType(), True),
     StructField("Holdings", ArrayType(

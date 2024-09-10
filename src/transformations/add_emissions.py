@@ -6,6 +6,7 @@ def add_emissions(customer_portfolio_df: DataFrame, public_markets_df: DataFrame
 
     exploded_customer_holdings_df = customer_portfolio_df.withColumn("Holding", F.explode("Holdings"))
     exploded_df = exploded_customer_holdings_df.select(
+        "Portfolio Name",
         "FundName",
         "FundValue",
         F.col("Holding.HoldingIdentifier").alias("HoldingIdentifier"),

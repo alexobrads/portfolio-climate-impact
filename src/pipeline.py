@@ -1,13 +1,19 @@
 from pyspark.sql import SparkSession
+from typing import List
+
+from pyspark.sql.functions import lit
+from pyspark.sql.types import StructType, StructField, StringType
 
 from models.raw.fixed_income_universe import fixed_income_universe_schema
 from models.raw.public_universe import public_universe_schema
-import pandas as pd
-
+from models.raw.portfolio import portfolio_mandatory_columns, portfolio_schema
+from models.raw.holdings import holdings_schema, holdings_mandatory_columns
+from validation.raw_data_validation import raw_data_validation
 from transformations.build_customer_portfolio import build_customer_portfolio
+import argparse
 
 
-def main():
+def main(base_directory: str, portfolios: List[str]):
 
     spark = SparkSession.builder \
         .appName("PortfolioEmissionsPipeline") \
@@ -21,25 +27,63 @@ def main():
     df_public_universe.cache()
     df_fixed_income_universe.cache()
 
-    portfolio_df = spark.read.format("com.crealytics.spark.excel") \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .load("./data/SamplePortfolio1/Portfolio.xlsx")
+    # Initialize empty DataFrames
+    combined_portfolio_df = spark.createDataFrame(spark.sparkContext.emptyRDD(), portfolio_schema)
+    combined_public_equity_df = spark.createDataFrame(spark.sparkContext.emptyRDD(), holdings_schema)
+    combined_fixed_income_df = spark.createDataFrame(spark.sparkContext.emptyRDD(), holdings_schema)
 
-    public_equity_df = spark.read.format("com.crealytics.spark.excel") \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .load("./data/SamplePortfolio1/PublicEquityHoldings.xlsx")
+    for portfolio in portfolios:
 
-    fixed_income_df = spark.read.format("com.crealytics.spark.excel") \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .load("./data/SamplePortfolio1/FixedIncomeHoldings.xlsx")
+        try:
+            portfolio_df = spark.read.format("com.crealytics.spark.excel") \
+                .option("header", "true") \
+                .option("inferSchema", "true") \
+                .load(f"{base_directory}/{portfolio}/Portfolio.xlsx") \
+                .withColumn("Portfolio Name", lit(f"{portfolio}").cast("string"))
 
-    customer_portfolio = build_customer_portfolio(portfolio_df, public_equity_df, fixed_income_df)
-    customer_portfolio.write.json("./output/customer_portfolio.json")
+            if not raw_data_validation(portfolio_df, portfolio_schema, portfolio_mandatory_columns):
+                raise ValueError(f"Schema mismatch for Portfolio in {portfolio}")
+
+            public_equity_df = spark.read.format("com.crealytics.spark.excel") \
+                .option("header", "true") \
+                .option("inferSchema", "true") \
+                .load(f"{base_directory}/{portfolio}/PublicEquityHoldings.xlsx") \
+                .withColumn("Portfolio Name", lit(f"{portfolio}").cast("string"))
+
+            if not raw_data_validation(public_equity_df, holdings_schema, holdings_mandatory_columns):
+                raise ValueError(f"Schema mismatch for PublicEquityHoldings in {portfolio}")
+
+            fixed_income_df = spark.read.format("com.crealytics.spark.excel") \
+                .option("header", "true") \
+                .option("inferSchema", "true") \
+                .load(f"{base_directory}/{portfolio}/FixedIncomeHoldings.xlsx") \
+                .withColumn("Portfolio Name", lit(f"{portfolio}").cast("string"))
+
+            if not raw_data_validation(fixed_income_df, holdings_schema, holdings_mandatory_columns):
+                raise ValueError(f"Schema mismatch for FixedIncomeHoldings in {portfolio}")
+
+            combined_portfolio_df = combined_portfolio_df.union(portfolio_df)
+            combined_public_equity_df = combined_public_equity_df.union(public_equity_df)
+            combined_fixed_income_df = combined_fixed_income_df.union(fixed_income_df)
+
+        except ValueError as e:
+            print(f"************************************************")
+            print(f"Skipping portfolio {portfolio} due to error: {e}")
+            print(f"************************************************")
+            spark.createDataFrame([(f"{portfolio}",)], StructType([StructField("portfolio_name", StringType(), True)])) \
+                .write.mode("overwrite").json("./output/failed_portfolios.json")
+            continue
+
+    customer_portfolio = build_customer_portfolio(combined_portfolio_df, combined_public_equity_df, combined_fixed_income_df)
+    customer_portfolio.write.mode("overwrite").json("./output/customer_portfolio.json")
 
     spark.stop()
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("base_directory", type=str, help="Base directory path")
+    parser.add_argument("portfolios", type=str, nargs='+', help="List of portfolio names")
+
+    args = parser.parse_args()
+    main(args.base_directory, args.portfolios)

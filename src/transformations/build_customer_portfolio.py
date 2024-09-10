@@ -6,11 +6,11 @@ def build_flat_portfolio(
         public_equity_df: DataFrame,
         fixed_income_df: DataFrame) -> DataFrame:
 
-    holdings = public_equity_df.union(fixed_income_df)
+    holdings = public_equity_df.union(fixed_income_df).withColumnRenamed("Portfolio Name", "PN")
 
     flat_portfolio_df = portfolio_df.join(
         holdings,
-        portfolio_df["FundName"] == holdings["Fund"],
+        (portfolio_df["FundName"] == holdings["Fund"]) & (portfolio_df["Portfolio Name"] == holdings["PN"]),
         how="left"
     ).drop("Fund")
 
@@ -22,7 +22,6 @@ def build_customer_portfolio(
         public_equity_df: DataFrame,
         fixed_income_df: DataFrame) -> DataFrame:
 
-    ##TODO CAN I ADD SCHEMA CHECK TO THE INPUTS
     """
 
     Transforms dataframes Portfolio, PublicEquityHoldings, and FixedIncomeHoldings into
@@ -42,7 +41,7 @@ def build_customer_portfolio(
     flat_portfolio_df = build_flat_portfolio(portfolio_df, public_equity_df, fixed_income_df)
 
 
-    customer_portfolio_df = flat_portfolio_df.groupBy("FundName", "FundValue").agg(
+    customer_portfolio_df = flat_portfolio_df.groupBy("Portfolio Name", "FundName", "FundValue").agg(
         F.collect_list(
             F.struct(
                 F.col("Holding Identifier").alias("HoldingIdentifier"),
