@@ -73,7 +73,7 @@ def main(base_directory: str, portfolios: List[str]):
             print(f"Skipping portfolio {portfolio} due to error: {e}")
             print(f"************************************************")
             spark.createDataFrame([(f"{portfolio}",)], StructType([StructField("portfolio_name", StringType(), True)])) \
-                .write.mode("overwrite").json("./output/failed_portfolios.json")
+                .write.json("./output/failed_portfolios.json")
             continue
 
     customer_portfolio = build_customer_portfolio(combined_portfolio_df, combined_public_equity_df, combined_fixed_income_df)
